@@ -4,6 +4,7 @@ using RconAuth.Enums;
 using RconAuth.Exceptions;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -25,6 +26,16 @@ namespace RconAuth
             RconPassword = rconPassword;
             ClientConnected += (ClientApi<PacketTypeRequest> clientApi) => ClientStates[clientApi.Client] = false;
             ClientDisconnecting += (ClientApi<PacketTypeRequest> clientApi) => ClientStates.TryRemove(clientApi.Client, out _);
+
+            ServerStoping += () =>
+            {
+                foreach (KeyValuePair<TcpClient, bool> client in ClientStates)
+                {
+                    ClientApi<PacketTypeRequest> clientApi = new(client.Key);
+
+                    ClientClose(clientApi);
+                }
+            };
 
             Exceptions.Add(typeof(NotAuthException), async Task (ClientApi<PacketTypeRequest> clientApi, Exception ex) =>
             {

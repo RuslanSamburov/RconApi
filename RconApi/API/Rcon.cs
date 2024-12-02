@@ -6,6 +6,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace RconApi.API
@@ -14,7 +15,7 @@ namespace RconApi.API
     {
         public static readonly Version Version = new(1, 0, 0);
 
-        private readonly TcpListener _listener = new(ipAddress, port);
+        private TcpListener _listener { get; set; }
 
         public int Port { get; } = port;
         public IPAddress IPAddress { get; } = ipAddress;
@@ -36,27 +37,35 @@ namespace RconApi.API
         public Dictionary<TEnumRequest, Func<ClientApi<TEnumRequest>, Task>> RequestFuncs = [];
         public Dictionary<Type, Func<ClientApi<TEnumRequest>, Exception, Task>> Exceptions = [];
 
-        public async Task StartServer()
+        private CancellationTokenSource _cancellationTokenSource;
+
+        public void StartServer()
         {
-            try
-            {
-                ServerStarting?.Invoke();
-                _listener.Start();
-                ServerStarted?.Invoke();
+            _cancellationTokenSource = new CancellationTokenSource();
 
-                while (true)
+            Task.Run(() =>
+            {
+                try
                 {
-                    TcpClient client = await _listener.AcceptTcpClientAsync();
-                    ClientApi<TEnumRequest> ClientApi = new(client);
+                    _listener = new(IPAddress, Port);
+                    ServerStarting?.Invoke();
+                    _listener.Start();
+                    ServerStarted?.Invoke();
 
-                    ClientConnected?.Invoke(ClientApi);
-                    _ = HandleClientAsync(ClientApi);
+                    while (!_cancellationTokenSource.Token.IsCancellationRequested)
+                    {
+                        TcpClient client = _listener.AcceptTcpClient();
+                        ClientApi<TEnumRequest> ClientApi = new(client);
+
+                        ClientConnected?.Invoke(ClientApi);
+                        _ = HandleClient(ClientApi);
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                ServerError?.Invoke(ex);
-            }
+                catch (Exception ex)
+                {
+                    ServerError?.Invoke(ex);
+                }
+            });
         }
 
         public void ClientClose(ClientApi<TEnumRequest> client)
@@ -69,6 +78,8 @@ namespace RconApi.API
         {
             ServerStoping?.Invoke();
             _listener.Stop();
+
+            _cancellationTokenSource.Cancel();
             ServerStoped?.Invoke();
         }
 
@@ -86,7 +97,7 @@ namespace RconApi.API
             await writer.BaseStream.FlushAsync();
         }
 
-        private async Task HandleClientAsync(ClientApi<TEnumRequest> clientApi)
+        private async Task HandleClient(ClientApi<TEnumRequest> clientApi)
         {
             try
             {
