@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35327.3
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RconApi", "RconApi\RconApi.csproj", "{698DBD6A-3211-4DE9-8001-4CCEB0A02E34}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RconAuth", "RconAuth\RconAuth.csproj", "{32E7A166-9265-46F2-A9EC-F2ACB7153EF4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{698DBD6A-3211-4DE9-8001-4CCEB0A02E34}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{698DBD6A-3211-4DE9-8001-4CCEB0A02E34}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{698DBD6A-3211-4DE9-8001-4CCEB0A02E34}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{698DBD6A-3211-4DE9-8001-4CCEB0A02E34}.Release|Any CPU.Build.0 = Release|Any CPU
+		{32E7A166-9265-46F2-A9EC-F2ACB7153EF4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{32E7A166-9265-46F2-A9EC-F2ACB7153EF4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{32E7A166-9265-46F2-A9EC-F2ACB7153EF4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{32E7A166-9265-46F2-A9EC-F2ACB7153EF4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {AE129CCB-0622-4C61-9684-0107EF56C373}
+	EndGlobalSection
+EndGlobal
