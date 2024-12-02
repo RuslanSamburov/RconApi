@@ -13,7 +13,7 @@ namespace RconApi.API
 {
     public class Rcon<TEnumResponse, TEnumRequest>(int port, IPAddress ipAddress) where TEnumResponse : Enum where TEnumRequest : Enum
     {
-        public static readonly Version Version = new(1, 0, 0);
+        public static readonly Version Version = new(1, 0, 1);
 
         private TcpListener _listener { get; set; }
 
