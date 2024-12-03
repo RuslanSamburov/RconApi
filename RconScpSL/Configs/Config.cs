@@ -1,6 +1,5 @@
 ﻿using Exiled.API.Interfaces;
 using System.ComponentModel;
-using System.Net;
 
 namespace RconScpSL.Configs
 {
@@ -15,7 +14,7 @@ namespace RconScpSL.Configs
         [Description("Rcon port, specify a free port for TCP")]
         public int RconPort { get; set; } = 27020;
 
-        [Description("Server Ip")]
-        public IPAddress IPAddress { get; set; } = IPAddress.Any;
+        [Description("Public(true) Or Private(false) Server Ip")]
+        public bool IPAddress { get; set; } = true;
     }
 }
