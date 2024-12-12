@@ -37,7 +37,7 @@ namespace RconApi.API
         public Dictionary<TEnumRequest, Func<ClientApi<TEnumRequest>, Task>> RequestFuncs = [];
         public Dictionary<Type, Func<ClientApi<TEnumRequest>, Exception, Task>> Exceptions = [];
 
-        public CancellationTokenSource _cancellationTokenSource;
+        public CancellationTokenSource _cancellationTokenSource { get; private set; }
 
         public void StartServer()
         {
