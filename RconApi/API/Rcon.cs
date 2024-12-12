@@ -13,7 +13,7 @@ namespace RconApi.API
 {
     public class Rcon<TEnumResponse, TEnumRequest>(int port, IPAddress ipAddress) where TEnumResponse : Enum where TEnumRequest : Enum
     {
-        public static readonly Version Version = new(1, 0, 1);
+        public static readonly Version Version = new(1, 0, 2);
 
         private TcpListener _listener { get; set; }
 
@@ -37,7 +37,7 @@ namespace RconApi.API
         public Dictionary<TEnumRequest, Func<ClientApi<TEnumRequest>, Task>> RequestFuncs = [];
         public Dictionary<Type, Func<ClientApi<TEnumRequest>, Exception, Task>> Exceptions = [];
 
-        private CancellationTokenSource _cancellationTokenSource;
+        public CancellationTokenSource _cancellationTokenSource;
 
         public void StartServer()
         {
