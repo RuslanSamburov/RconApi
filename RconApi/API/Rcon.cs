@@ -17,8 +17,8 @@ namespace RconApi.API
 
         private TcpListener _listener { get; set; }
 
-        public int Port { get; } = port;
-        public IPAddress IPAddress { get; } = ipAddress;
+        public int Port { get; private set; } = port;
+        public IPAddress IPAddress { get; private set; } = ipAddress;
 
         public event Action ServerStarting;
         public event Action ServerStarted;
@@ -34,8 +34,8 @@ namespace RconApi.API
         public event Action ServerStoping;
         public event Action ServerStoped;
 
-        public Dictionary<TEnumRequest, Func<ClientApi<TEnumRequest>, Task>> RequestFuncs = [];
-        public Dictionary<Type, Func<ClientApi<TEnumRequest>, Exception, Task>> Exceptions = [];
+        public readonly Dictionary<TEnumRequest, Func<ClientApi<TEnumRequest>, Task>> RequestFuncs = [];
+        public readonly Dictionary<Type, Func<ClientApi<TEnumRequest>, Exception, Task>> Exceptions = [];
 
         public CancellationTokenSource _cancellationTokenSource { get; private set; }
 
