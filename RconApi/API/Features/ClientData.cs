@@ -1,38 +1,30 @@
-﻿using RconApi.API.Exceptions;
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
 
 namespace RconApi.API.Features
 {
-    public class ClientData<TEnumRequest> where TEnumRequest : Enum
-    {
-        public int Length { get; private set; }
-        public int MessageId { get; private set; }
-        public int PacketTypeInt { get; private set; }
-        public TEnumRequest PacketTypeRequest { get; private set; }
-        public string Payload { get; private set; }
+	public class ClientData<TEnumRequest>(BinaryReader reader) where TEnumRequest : Enum
+	{
+		private readonly BinaryReader _reader = reader;
 
-        internal void Update(BinaryReader reader)
-        {
-            Length = reader.ReadInt32();
+		public int Length { get; private set; }
+		public int MessageId { get; private set; }
+		public int PacketTypeRequest { get; private set; }
+		public string Payload { get; private set; }
 
-            if (Length < 10)
-            {
-                throw new InvalidDataException("Packet length is too short.");
-            }
+		public void Update()
+		{
+			Length = _reader.ReadInt32();
+			MessageId = _reader.ReadInt32();
+			PacketTypeRequest = _reader.ReadInt32();
+			Payload = Encoding.UTF8.GetString(_reader.ReadBytes(Length - 10));
+			_reader.ReadInt16();
+		}
 
-            MessageId = reader.ReadInt32();
-            PacketTypeInt = reader.ReadInt32();
-            try
-            {
-                PacketTypeRequest = (TEnumRequest)Enum.ToObject(typeof(TEnumRequest), PacketTypeInt);
-            } catch (ArgumentException)
-            {
-                throw new NotFoundPacketTypeException(PacketTypeInt);
-            }
-            Payload = Encoding.UTF8.GetString(reader.ReadBytes(Length - 10));
-            reader.ReadInt16();
-        }
-    }
+		public TEnumRequest GetPacketType()
+		{
+			return (TEnumRequest)Enum.ToObject(typeof(TEnumRequest), PacketTypeRequest);
+		}
+	}
 }

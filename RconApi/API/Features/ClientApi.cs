@@ -1,28 +1,16 @@
 ﻿using System;
-using System.IO;
 using System.Net.Sockets;
+using RconApi.API.Abstracts;
 
 namespace RconApi.API.Features
 {
-    public class ClientApi<TEnumRequest>(TcpClient client) : IDisposable where TEnumRequest : Enum
-    {
-        public TcpClient Client { get; } = client;
-        public ClientData<TEnumRequest> ClientData { get; } = new();
-        public BinaryWriter BinaryWriter { get; } = new(client.GetStream());
-        public BinaryReader BinaryReader { get; } = new(client.GetStream());
+	public class ClientApi<TEnumRequest> : AClient where TEnumRequest : Enum
+	{
+		public ClientData<TEnumRequest> ClientData { get; }
 
-        private bool _disposed = false;
-
-        public void Dispose()
-        {
-            if (_disposed) return;
-
-            BinaryReader?.Dispose();
-            BinaryWriter?.Dispose();
-
-            Client?.Close();
-
-            _disposed = true;
-        }
-    }
+		public ClientApi(TcpClient client) : base(client)
+		{
+			ClientData = new ClientData<TEnumRequest>(BinaryReader);
+		}
+	}
 }

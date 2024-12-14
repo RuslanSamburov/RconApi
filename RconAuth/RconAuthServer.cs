@@ -1,7 +1,10 @@
 ﻿using RconApi.API;
+using RconApi.API.Abstracts;
+using RconApi.API.EventsArgs;
 using RconApi.API.Features;
 using RconAuth.Enums;
 using RconAuth.Exceptions;
+using RconAuth.Features;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -13,27 +16,25 @@ namespace RconAuth
 {
     public class RconAuthServer : Rcon<PacketTypeResponse, PacketTypeRequest>
     {
-        private string RconPassword;
+        private readonly string RconPassword;
         private readonly ConcurrentDictionary<TcpClient, bool> ClientStates = new();
 
-        public event Action<ClientApi<PacketTypeRequest>> Authenticated;
-        public event Action<ClientApi<PacketTypeRequest>> NotAuthenticated;
+		public EventsAuth<PacketTypeRequest> EventsAuth = new();
 
-        public event Action<ClientApi<PacketTypeRequest>> Command;
-
-        public RconAuthServer(int port, IPAddress ipAddress, string rconPassword) : base(port, ipAddress)
+		public RconAuthServer(int port, IPAddress ipAddress, string rconPassword) : base(port, ipAddress)
         {
             RconPassword = rconPassword;
-            ClientConnected += (ClientApi<PacketTypeRequest> clientApi) => ClientStates[clientApi.Client] = false;
-            ClientDisconnecting += (ClientApi<PacketTypeRequest> clientApi) => ClientStates.TryRemove(clientApi.Client, out _);
 
-            ServerStoping += () =>
+            Events.ClientConnected += (ClientConnectedEventArgs client) => ClientStates[client.TcpClient] = false;
+            Events.ClientDisconnecting += (ClientDisconnectingEventArgs client) => ClientStates.TryRemove(client.TcpClient, out _);
+
+			Events.ServerStopping += () =>
             {
                 foreach (KeyValuePair<TcpClient, bool> client in ClientStates)
                 {
-                    ClientApi<PacketTypeRequest> clientApi = new(client.Key);
+                    AClient clientApi = new(client.Key);
 
-                    ClientClose(clientApi);
+                    ClientClose(clientApi.TcpClient);
                 }
             };
 
@@ -41,9 +42,9 @@ namespace RconAuth
             {
                 if (ex is NotAuthException auth)
                 {
-                    NotAuthenticated?.Invoke(clientApi);
+					EventsAuth.OnNotAuthenticated(clientApi);
                     await SendResponse(clientApi.BinaryWriter, -1, PacketTypeResponse.ResponseAuth, auth.Message);
-                    clientApi.Client.Close();
+                    ClientClose(clientApi.TcpClient);
                 }
             });
 
@@ -51,8 +52,8 @@ namespace RconAuth
             {
                 if (RconPassword == clientApi.ClientData.Payload)
                 {
-                    ClientStates[clientApi.Client] = true;
-                    Authenticated?.Invoke(clientApi);
+                    ClientStates[clientApi.TcpClient] = true;
+                    EventsAuth.OnAuthenticated(clientApi);
                     await SendResponse(clientApi.BinaryWriter, clientApi.ClientData.MessageId, PacketTypeResponse.ResponseAuth, "Authentication successful.");
                 }
                 else
@@ -63,9 +64,9 @@ namespace RconAuth
 
             RequestFuncs.Add(PacketTypeRequest.Command, async Task (ClientApi<PacketTypeRequest> clientApi) =>
             {
-                if (ClientStates[clientApi.Client])
+                if (ClientStates[clientApi.TcpClient])
                 {
-                    Command?.Invoke(clientApi);
+                    EventsAuth.OnCommand(clientApi);
                 }
                 else
                 {
