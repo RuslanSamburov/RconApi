@@ -1,60 +1,45 @@
 ﻿using RconApi.API;
-using RconApi.API.Abstracts;
 using RconApi.API.EventsArgs;
 using RconApi.API.Features;
+using RconApi.API.Features.Clients;
 using RconAuth.Enums;
 using RconAuth.Exceptions;
 using RconAuth.Features;
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Net;
-using System.Net.Sockets;
 using System.Threading.Tasks;
 
 namespace RconAuth
 {
-    public class RconAuthServer : Rcon<PacketTypeResponse, PacketTypeRequest>
+    public class RconAuthServer : Rcon
     {
         private readonly string RconPassword;
-        private readonly ConcurrentDictionary<TcpClient, bool> ClientStates = new();
 
-		public EventsAuth<PacketTypeRequest> EventsAuth = new();
+		public EventsAuth EventsAuth = new();
 
 		public RconAuthServer(int port, IPAddress ipAddress, string rconPassword) : base(port, ipAddress)
         {
             RconPassword = rconPassword;
 
-            Events.ClientConnected += (ClientConnectedEventArgs client) => ClientStates[client.TcpClient] = false;
-            Events.ClientDisconnecting += (ClientDisconnectingEventArgs client) => ClientStates.TryRemove(client.TcpClient, out _);
+            Events.ClientConnected += (ClientConnectedEventArgs client) => client.Client.MetaData.SetMetadata("auth", false);
 
-			Events.ServerStopping += () =>
-            {
-                foreach (KeyValuePair<TcpClient, bool> client in ClientStates)
-                {
-                    AClient clientApi = new(client.Key);
-
-                    ClientClose(clientApi.TcpClient);
-                }
-            };
-
-            Exceptions.Add(typeof(NotAuthException), async Task (ClientApi<PacketTypeRequest> clientApi, Exception ex) =>
+            _exceptions.Add(typeof(NotAuthException), async Task (Client client, Exception ex) =>
             {
                 if (ex is NotAuthException auth)
                 {
-					EventsAuth.OnNotAuthenticated(clientApi);
-                    await SendResponse(clientApi.BinaryWriter, -1, PacketTypeResponse.ResponseAuth, auth.Message);
-                    ClientClose(clientApi.TcpClient);
+					EventsAuth.OnNotAuthenticated(client);
+                    await client.SendResponse(auth.Message, (int)PacketTypeResponse.ResponseAuth, -1);
+                    client.Disconnect();
                 }
             });
 
-            RequestFuncs.Add(PacketTypeRequest.Authentication, async Task (ClientApi<PacketTypeRequest> clientApi) =>
+            _requestFuncs.Add((int)PacketTypeRequest.Authentication, async Task (Client client) =>
             {
-                if (RconPassword == clientApi.ClientData.Payload)
+                if (RconPassword == client.Data.Payload)
                 {
-                    ClientStates[clientApi.TcpClient] = true;
-                    EventsAuth.OnAuthenticated(clientApi);
-                    await SendResponse(clientApi.BinaryWriter, clientApi.ClientData.MessageId, PacketTypeResponse.ResponseAuth, "Authentication successful.");
+                    client.MetaData.SetMetadata("auth", true);
+                    EventsAuth.OnAuthenticated(client);
+                    await client.SendResponse("Authentication successful.", (int)PacketTypeResponse.ResponseAuth, client.Data.MessageId);
                 }
                 else
                 {
@@ -62,11 +47,11 @@ namespace RconAuth
                 }
             });
 
-            RequestFuncs.Add(PacketTypeRequest.Command, async Task (ClientApi<PacketTypeRequest> clientApi) =>
+            _requestFuncs.Add((int)PacketTypeRequest.Command, async Task (Client client) =>
             {
-                if (ClientStates[clientApi.TcpClient])
+                if (client.MetaData.GetMetadata<bool>("auth"))
                 {
-                    EventsAuth.OnCommand(clientApi);
+                    EventsAuth.OnCommand(client);
                 }
                 else
                 {

@@ -1,28 +1,28 @@
-﻿using RconApi.API.Features;
+﻿using RconApi.API.Features.Clients;
 using RconAuth.EventsArgs;
 using System;
 
 namespace RconAuth.Features
 {
-	public class EventsAuth<TEnumRequest> where TEnumRequest : Enum
+	public class EventsAuth
 	{
-		public event Action<AuthenticatedEventArgs<TEnumRequest>> Authenticated;
-		public event Action<NotAuthenticatedEventArgs<TEnumRequest>> NotAuthenticated;
-		public event Action<CommandEventArgs<TEnumRequest>> Command;
+		public event Action<AuthenticatedEventArgs> Authenticated;
+		public event Action<NotAuthenticatedEventArgs> NotAuthenticated;
+		public event Action<CommandEventArgs> Command;
 
-		public void OnAuthenticated(ClientApi<TEnumRequest> clientApi)
+		public void OnAuthenticated(Client client)
 		{
-			Authenticated?.Invoke(new(clientApi));
+			Authenticated?.Invoke(new(client));
 		}
 
-		public void OnNotAuthenticated(ClientApi<TEnumRequest> clientApi)
+		public void OnNotAuthenticated(Client client)
 		{
-			NotAuthenticated?.Invoke(new(clientApi));
+			NotAuthenticated?.Invoke(new(client));
 		}
 
-		public void OnCommand(ClientApi<TEnumRequest> clientApi)
+		public void OnCommand(Client client)
 		{
-			NotAuthenticated?.Invoke(new(clientApi));
+			Command?.Invoke(new(client));
 		}
 	}
 }

@@ -1,25 +1,35 @@
-﻿using System;
-using System.Net.Sockets;
-using RconApi.API.Abstracts;
-using RconApi.API.Features;
+﻿using RconApi.API.Features.Clients;
+using System;
 
 namespace RconApi.API.EventsArgs
 {
-	public class ClientConnectedEventArgs(TcpClient client) : AClient(client)
+	public class ClientConnectedEventArgs(Client client)
 	{
+		public Client Client { get; } = client ?? throw new ArgumentNullException(nameof(client));
+		public DateTime ConnectedAt { get; } = client.ConnectedAt;
 	}
 
-	public class ClientDisconnectingEventArgs(TcpClient client) : AClient(client)
+	public class ClientDisconnectingEventArgs(Client client)
 	{
+		public Client Client { get; } = client ?? throw new ArgumentNullException(nameof(client));
+		public DateTime DisconnectingAt { get; } = DateTime.Now;
 	}
 
-	public class ClientWriteEventArgs<TEnumRequest>(ClientApi<TEnumRequest> clientApi) where TEnumRequest : Enum
+	public class ClientDisconnectedEventArgs(Client client)
 	{
-		public ClientApi<TEnumRequest> ClientApi { get; } = clientApi;
+		public Client Client { get; } = client ?? throw new ArgumentNullException(nameof(client));
+		public DateTime DisconnectedAt { get; } = DateTime.Now;
 	}
 
-	public class UnknownPacketEventArgs<TEnumRequest>(ClientApi<TEnumRequest> clientApi) where TEnumRequest : Enum
+	public class ClientWriteEventArgs(Client client)
 	{
-		public ClientApi<TEnumRequest> ClientApi { get; } = clientApi;
+		public Client Client { get; } = client ?? throw new ArgumentNullException(nameof(client));
+		public ClientData Data => Client.Data;
+	}
+
+	public class UnknownPacketEventArgs(Client client)
+	{
+		public Client Client { get; } = client ?? throw new ArgumentNullException(nameof(client));
+		public int PacketType => Client.Data.PacketTypeRequest;
 	}
 }

@@ -1,20 +1,20 @@
-﻿using RconApi.API.Features;
-using System;
+﻿using RconApi.API.Features.Clients;
 
 namespace RconAuth.EventsArgs
 {
-	public class AuthenticatedEventArgs<TEnumRequest>(ClientApi<TEnumRequest> clientApi) where TEnumRequest : Enum
+	public class AuthenticatedEventArgs(Client client)
 	{
-		public ClientApi<TEnumRequest> ClientApi { get; } = clientApi;
+		public Client Client { get; } = client;
 	}
 
-	public class NotAuthenticatedEventArgs<TEnumRequest>(ClientApi<TEnumRequest> clientApi) where TEnumRequest : Enum
+	public class NotAuthenticatedEventArgs(Client client)
 	{
-		public ClientApi<TEnumRequest> ClientApi { get; } = clientApi;
+		public Client Client { get; } = client;
 	}
 
-	public class CommandEventArgs<TEnumRequest>(ClientApi<TEnumRequest> clientApi) where TEnumRequest : Enum
+	public class CommandEventArgs(Client client)
 	{
-		public ClientApi<TEnumRequest> ClientApi { get; } = clientApi;
+		public Client Client { get; } = client;
+		public string Payload => Client.Data.Payload;
 	}
 }

@@ -1,32 +1,36 @@
 ﻿using RconApi.API.Features;
+using RconApi.API.Features.Clients;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace RconApi.API
 {
-	public class Rcon<TEnumResponse, TEnumRequest>(int port, IPAddress ipAddress) where TEnumResponse : Enum where TEnumRequest : Enum
+	public class Rcon(int port, IPAddress ipAddress)
 	{
-		public static readonly Version Version = new(1, 0, 2);
+		public static readonly Version Version = new(1, 0, 3);
 		private TcpListener _listener;
+
+		private readonly List<Client> _clients = [];
 
 		public int Port { get; } = port;
 		public IPAddress IPAddress { get; } = ipAddress;
-		public Events<TEnumRequest> Events { get; } = new();
-		public Dictionary<TEnumRequest, Func<ClientApi<TEnumRequest>, Task>> RequestFuncs { get; } = [];
-		public Dictionary<Type, Func<ClientApi<TEnumRequest>, Exception, Task>> Exceptions { get; } = [];
+
+		public Events Events { get; } = new();
+
+		public Dictionary<int, Func<Client, Task>> _requestFuncs { get; } = [];
+		public Dictionary<Type, Func<Client, Exception, Task>> _exceptions { get; } = [];
+
 		private CancellationTokenSource _cancellationTokenSource;
 
 		public void StartServer()
 		{
 			_cancellationTokenSource = new CancellationTokenSource();
 
-			Task.Run(() =>
+			Task.Run(async () =>
 			{
 				try
 				{
@@ -37,9 +41,14 @@ namespace RconApi.API
 
 					while (!IsCancellationRequested())
 					{
-						TcpClient client = _listener.AcceptTcpClient();
-						Events.OnClientConnected(client);
-						_ = HandleClient(client);
+						TcpClient client = await _listener.AcceptTcpClientAsync();
+
+						Client clientApi = new(ref client, this);
+
+						_clients.Add(clientApi);
+
+						Events.OnClientConnected(clientApi);
+						_ = HandleClient(clientApi);
 					}
 				}
 				catch (Exception ex)
@@ -49,29 +58,18 @@ namespace RconApi.API
 			});
 		}
 
-		public void ClientClose(TcpClient client)
-		{
-			Events.OnClientDisconnecting(client);
-			client.Close();
-		}
-
 		public void StopServer()
 		{
 			Events.OnServerStopping();
+			_clients.ForEach(x => x.Disconnect());
 			_listener.Stop();
 			_cancellationTokenSource.Cancel();
 			Events.OnServerStopped();
 		}
 
-		public static async Task SendResponse(BinaryWriter writer, int messageId, Enum type, string message)
+		public IReadOnlyList<Client> GetClients()
 		{
-			byte[] payload = Encoding.UTF8.GetBytes(message);
-			writer.Write(payload.Length + 10);
-			writer.Write(messageId);
-			writer.Write(Convert.ToInt32(type));
-			writer.Write(payload);
-			writer.Write((short)0);
-			await writer.BaseStream.FlushAsync();
+			return _clients.AsReadOnly();
 		}
 
 		public bool IsCancellationRequested()
@@ -79,35 +77,42 @@ namespace RconApi.API
 			return _cancellationTokenSource.Token.IsCancellationRequested;
 		}
 
-		private async Task HandleClient(TcpClient client)
+		private async Task HandleClient(Client client)
 		{
-			ClientApi<TEnumRequest> clientApi = new(client);
-
-			while (clientApi.TcpClient.Connected)
+			while (client.Connected)
 			{
-				clientApi.ClientData.Update();
 				try
 				{
-					Events.OnClientWrite(clientApi);
-					TEnumRequest packetType = clientApi.ClientData.GetPacketType();
+					client.Data.Update();
+				}
+				catch
+				{
+					client.Disconnect();
+					break;
+				}
 
-					if (RequestFuncs.TryGetValue(packetType, out Func<ClientApi<TEnumRequest>, Task> func))
+				try
+				{
+					Events.OnClientWrite(client);
+
+					if (_requestFuncs.TryGetValue(client.Data.PacketTypeRequest, out Func<Client, Task> func))
 					{
-						await func(clientApi);
-					} else
+						await func(client);
+					}
+					else
 					{
-						Events.OnUnknownPacket(clientApi);
+						Events.OnUnknownPacket(client);
 					}
 				}
 				catch (ArgumentNullException)
 				{
-					Events.OnUnknownPacket(clientApi);
+					Events.OnUnknownPacket(client);
 				}
 				catch (Exception ex)
 				{
-					if (Exceptions.TryGetValue(ex.GetType(), out var func))
+					if (_exceptions.TryGetValue(ex.GetType(), out Func<Client, Exception, Task> func))
 					{
-						await func(clientApi, ex);
+						await func(client, ex);
 					}
 					else
 					{
@@ -115,6 +120,7 @@ namespace RconApi.API
 					}
 				}
 			}
+			_clients.Remove(client);
 		}
 	}
 }
