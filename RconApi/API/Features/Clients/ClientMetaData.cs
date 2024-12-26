@@ -4,7 +4,7 @@ namespace RconApi.API.Features.Clients
 {
 	public class ClientMetaData
 	{
-		public Dictionary<string, object> Metadata { get; } = new Dictionary<string, object>();
+		public Dictionary<string, object> Metadata { get; } = [];
 
 		public void SetMetadata(string key, object value)
 		{

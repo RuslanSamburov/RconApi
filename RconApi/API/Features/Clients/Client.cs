@@ -43,7 +43,9 @@ namespace RconApi.API.Features.Clients
 		public async Task SendResponse(string message, int type = 0, int? messageId = null)
 		{
 			if (!Connected)
+			{
 				throw new InvalidOperationException("Cannot send response to a disconnected client.");
+			}
 
 			messageId ??= Data.MessageId;
 			await SendResponse(BinaryWriter, (int)messageId, type, message);
