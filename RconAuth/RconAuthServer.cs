@@ -1,59 +1,45 @@
 ﻿using RconApi.API;
+using RconApi.API.EventsArgs;
 using RconApi.API.Features;
+using RconApi.API.Features.Clients;
 using RconAuth.Enums;
 using RconAuth.Exceptions;
+using RconAuth.Features;
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Net;
-using System.Net.Sockets;
 using System.Threading.Tasks;
 
 namespace RconAuth
 {
-    public class RconAuthServer : Rcon<PacketTypeResponse, PacketTypeRequest>
+    public class RconAuthServer : Rcon
     {
-        private string RconPassword;
-        private readonly ConcurrentDictionary<TcpClient, bool> ClientStates = new();
+        private readonly string RconPassword;
 
-        public event Action<ClientApi<PacketTypeRequest>> Authenticated;
-        public event Action<ClientApi<PacketTypeRequest>> NotAuthenticated;
+		public EventsAuth EventsAuth = new();
 
-        public event Action<ClientApi<PacketTypeRequest>> Command;
-
-        public RconAuthServer(int port, IPAddress ipAddress, string rconPassword) : base(port, ipAddress)
+		public RconAuthServer(int port, IPAddress ipAddress, string rconPassword) : base(port, ipAddress)
         {
             RconPassword = rconPassword;
-            ClientConnected += (ClientApi<PacketTypeRequest> clientApi) => ClientStates[clientApi.Client] = false;
-            ClientDisconnecting += (ClientApi<PacketTypeRequest> clientApi) => ClientStates.TryRemove(clientApi.Client, out _);
 
-            ServerStoping += () =>
-            {
-                foreach (KeyValuePair<TcpClient, bool> client in ClientStates)
-                {
-                    ClientApi<PacketTypeRequest> clientApi = new(client.Key);
+            Events.ClientConnected += (ClientConnectedEventArgs client) => client.Client.MetaData.SetMetadata("auth", false);
 
-                    ClientClose(clientApi);
-                }
-            };
-
-            Exceptions.Add(typeof(NotAuthException), async Task (ClientApi<PacketTypeRequest> clientApi, Exception ex) =>
+            _exceptions.Add(typeof(NotAuthException), async Task (Client client, Exception ex) =>
             {
                 if (ex is NotAuthException auth)
                 {
-                    NotAuthenticated?.Invoke(clientApi);
-                    await SendResponse(clientApi.BinaryWriter, -1, PacketTypeResponse.ResponseAuth, auth.Message);
-                    clientApi.Client.Close();
+					EventsAuth.OnNotAuthenticated(client);
+                    await client.SendResponse(auth.Message, (int)PacketTypeResponse.ResponseAuth, -1);
+                    client.Disconnect();
                 }
             });
 
-            RequestFuncs.Add(PacketTypeRequest.Authentication, async Task (ClientApi<PacketTypeRequest> clientApi) =>
+            _requestFuncs.Add((int)PacketTypeRequest.Authentication, async Task (Client client) =>
             {
-                if (RconPassword == clientApi.ClientData.Payload)
+                if (RconPassword == client.Data.Payload)
                 {
-                    ClientStates[clientApi.Client] = true;
-                    Authenticated?.Invoke(clientApi);
-                    await SendResponse(clientApi.BinaryWriter, clientApi.ClientData.MessageId, PacketTypeResponse.ResponseAuth, "Authentication successful.");
+                    client.MetaData.SetMetadata("auth", true);
+                    EventsAuth.OnAuthenticated(client);
+                    await client.SendResponse("Authentication successful.", (int)PacketTypeResponse.ResponseAuth, client.Data.MessageId);
                 }
                 else
                 {
@@ -61,11 +47,11 @@ namespace RconAuth
                 }
             });
 
-            RequestFuncs.Add(PacketTypeRequest.Command, async Task (ClientApi<PacketTypeRequest> clientApi) =>
+            _requestFuncs.Add((int)PacketTypeRequest.Command, async Task (Client client) =>
             {
-                if (ClientStates[clientApi.Client])
+                if (client.MetaData.GetMetadata<bool>("auth"))
                 {
-                    Command?.Invoke(clientApi);
+                    EventsAuth.OnCommand(client);
                 }
                 else
                 {

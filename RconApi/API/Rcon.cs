@@ -1,133 +1,126 @@
-﻿using RconApi.API.Exceptions;
-using RconApi.API.Features;
+﻿using RconApi.API.Features;
+using RconApi.API.Features.Clients;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace RconApi.API
 {
-    public class Rcon<TEnumResponse, TEnumRequest>(int port, IPAddress ipAddress) where TEnumResponse : Enum where TEnumRequest : Enum
-    {
-        public static readonly Version Version = new(1, 0, 2);
+	public class Rcon(int port, IPAddress ipAddress)
+	{
+		public static readonly Version Version = new(1, 0, 3);
+		private TcpListener _listener;
 
-        private TcpListener _listener { get; set; }
+		private readonly List<Client> _clients = [];
 
-        public int Port { get; private set; } = port;
-        public IPAddress IPAddress { get; private set; } = ipAddress;
+		public int Port { get; } = port;
+		public IPAddress IPAddress { get; } = ipAddress;
 
-        public event Action ServerStarting;
-        public event Action ServerStarted;
+		public Events Events { get; } = new();
 
-        public event Action<ClientApi<TEnumRequest>> ClientConnected;
+		public Dictionary<int, Func<Client, Task>> _requestFuncs { get; } = [];
+		public Dictionary<Type, Func<Client, Exception, Task>> _exceptions { get; } = [];
 
-        public event Action<ClientApi<TEnumRequest>> ClientDisconnecting;
+		private CancellationTokenSource _cancellationTokenSource;
 
-        public event Action<ClientApi<TEnumRequest>> UnknownPacket;
+		public void StartServer()
+		{
+			_cancellationTokenSource = new CancellationTokenSource();
 
-        public event Action<Exception> ServerError;
+			Task.Run(async () =>
+			{
+				try
+				{
+					_listener = new TcpListener(IPAddress, Port);
+					Events.OnServerStarting();
+					_listener.Start();
+					Events.OnServerStarted();
 
-        public event Action ServerStoping;
-        public event Action ServerStoped;
+					while (!IsCancellationRequested())
+					{
+						TcpClient client = await _listener.AcceptTcpClientAsync();
 
-        public readonly Dictionary<TEnumRequest, Func<ClientApi<TEnumRequest>, Task>> RequestFuncs = [];
-        public readonly Dictionary<Type, Func<ClientApi<TEnumRequest>, Exception, Task>> Exceptions = [];
+						Client clientApi = new(ref client, this);
 
-        public CancellationTokenSource _cancellationTokenSource { get; private set; }
+						_clients.Add(clientApi);
 
-        public void StartServer()
-        {
-            _cancellationTokenSource = new CancellationTokenSource();
+						Events.OnClientConnected(clientApi);
+						_ = HandleClient(clientApi);
+					}
+				}
+				catch (Exception ex)
+				{
+					Events.OnServerError(ex);
+				}
+			});
+		}
 
-            Task.Run(() =>
-            {
-                try
-                {
-                    _listener = new(IPAddress, Port);
-                    ServerStarting?.Invoke();
-                    _listener.Start();
-                    ServerStarted?.Invoke();
+		public void StopServer()
+		{
+			Events.OnServerStopping();
+			_clients.ForEach(x => x.Disconnect());
+			_listener.Stop();
+			_cancellationTokenSource.Cancel();
+			Events.OnServerStopped();
+		}
 
-                    while (!_cancellationTokenSource.Token.IsCancellationRequested)
-                    {
-                        TcpClient client = _listener.AcceptTcpClient();
-                        ClientApi<TEnumRequest> ClientApi = new(client);
+		public IReadOnlyList<Client> GetClients()
+		{
+			return _clients.AsReadOnly();
+		}
 
-                        ClientConnected?.Invoke(ClientApi);
-                        _ = HandleClient(ClientApi);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    ServerError?.Invoke(ex);
-                }
-            });
-        }
+		public bool IsCancellationRequested()
+		{
+			return _cancellationTokenSource.Token.IsCancellationRequested;
+		}
 
-        public void ClientClose(ClientApi<TEnumRequest> client)
-        {
-            ClientDisconnecting?.Invoke(client);
-            client.Client.Close();
-        }
+		private async Task HandleClient(Client client)
+		{
+			while (client.Connected)
+			{
+				try
+				{
+					client.Data.Update();
+				}
+				catch
+				{
+					client.Disconnect();
+					break;
+				}
 
-        public void StopServer()
-        {
-            ServerStoping?.Invoke();
-            _listener.Stop();
+				try
+				{
+					Events.OnClientWrite(client);
 
-            _cancellationTokenSource.Cancel();
-            ServerStoped?.Invoke();
-        }
-
-        public static async Task SendResponse(BinaryWriter writer, int messageId, Enum type, string message)
-        {
-            byte[] payload = Encoding.UTF8.GetBytes(message);
-            int length = payload.Length + 10;
-
-            writer.Write(length);
-            writer.Write(messageId);
-            writer.Write(Convert.ToInt32(type));
-            writer.Write(payload);
-            writer.Write((short)0);
-
-            await writer.BaseStream.FlushAsync();
-        }
-
-        private async Task HandleClient(ClientApi<TEnumRequest> clientApi)
-        {
-            try
-            {
-                while (clientApi.Client.Connected)
-                {
-                    clientApi.ClientData.Update(clientApi.BinaryReader);
-                    if (RequestFuncs.TryGetValue(clientApi.ClientData.PacketTypeRequest, out Func<ClientApi<TEnumRequest>, Task> func))
-                    {
-                        await func(clientApi);
-                    }
-                    else
-                    {
-                        throw new NotFoundPacketTypeException(clientApi.ClientData.PacketTypeInt);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                if (Exceptions.TryGetValue(ex.GetType(), out Func<ClientApi<TEnumRequest>, Exception, Task> func))
-                {
-                    await func(clientApi, ex);
-                } else
-                {
-                    ServerError?.Invoke(ex);
-                }
-            }
-            finally
-            {
-                ClientClose(clientApi);
-            }
-        }
-    }
+					if (_requestFuncs.TryGetValue(client.Data.PacketTypeRequest, out Func<Client, Task> func))
+					{
+						await func(client);
+					}
+					else
+					{
+						Events.OnUnknownPacket(client);
+					}
+				}
+				catch (ArgumentNullException)
+				{
+					Events.OnUnknownPacket(client);
+				}
+				catch (Exception ex)
+				{
+					if (_exceptions.TryGetValue(ex.GetType(), out Func<Client, Exception, Task> func))
+					{
+						await func(client, ex);
+					}
+					else
+					{
+						Events.OnServerError(ex);
+					}
+				}
+			}
+			_clients.Remove(client);
+		}
+	}
 }

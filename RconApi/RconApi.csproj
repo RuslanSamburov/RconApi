@@ -42,10 +42,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="API\Exceptions\NotFoundPacketTypeException.cs" />
-    <Compile Include="API\Features\ClientApi.cs" />
+    <Compile Include="API\EventsArgs.cs" />
+    <Compile Include="API\Features\Clients\Client.cs" />
+    <Compile Include="API\Features\Clients\ClientMetaData.cs" />
+    <Compile Include="API\Features\Events.cs" />
     <Compile Include="API\Rcon.cs" />
-    <Compile Include="API\Features\ClientData.cs" />
+    <Compile Include="API\Features\Clients\ClientData.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

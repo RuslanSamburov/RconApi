@@ -32,8 +32,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="RconApi">
-      <HintPath>..\..\..\..\Desktop\Libs\RconApi.dll</HintPath>
+    <Reference Include="RconApi, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\RconApi\bin\Debug\RconApi.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -47,7 +48,9 @@
   <ItemGroup>
     <Compile Include="Enums\PacketTypeRequest.cs" />
     <Compile Include="Enums\PacketTypeResponse.cs" />
+    <Compile Include="EventsArgs.cs" />
     <Compile Include="Exceptions\NotAuthException.cs" />
+    <Compile Include="Features\EventsAuth.cs" />
     <Compile Include="RconAuthServer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
